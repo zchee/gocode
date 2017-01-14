@@ -111,10 +111,10 @@ func (p *gc_bin_parser) parse_export(callback func(string, ast.Decl)) {
 
 	// read version specific flags - extend as necessary
 	switch p.version {
-	// case 4:
+	// case 5:
 	// 	...
 	//	fallthrough
-	case 3, 2, 1:
+	case 4, 3, 2, 1:
 		// Support for Go 1.8 type aliases will be added very
 		// soon (Oct 2016).  In the meantime, we make a
 		// best-effort attempt to read v3 export data, failing
@@ -196,6 +196,22 @@ func (p *gc_bin_parser) pkg() string {
 	return p.pkgList[len(p.pkgList)-1]
 }
 
+func (p *gc_bin_parser) objTag(obj ast.Object) int {
+	switch obj.Kind {
+	case ast.Con:
+		return constTag
+	case ast.Typ:
+		return typeTag
+	case ast.Var:
+		return varTag
+	case ast.Fun:
+		return funcTag
+	// Aliases are not exported multiple times, thus we should not see them here.
+	default:
+		panic(fmt.Sprintf("unexpected object: %v (%T)", obj, obj))
+	}
+}
+
 func (p *gc_bin_parser) obj(tag int) {
 	switch tag {
 	case constTag:
@@ -213,6 +229,21 @@ func (p *gc_bin_parser) obj(tag int) {
 				},
 			},
 		})
+
+	case aliasTag:
+		p.pos()
+		pkg, name := p.qualifiedName()
+		typ := p.typ("")
+		p.callback(pkg, &ast.GenDecl{
+			Tok: token.TYPE,
+			Specs: []ast.Spec{
+				&ast.TypeSpec{
+					Name: ast.NewIdent(name),
+					Type: typ,
+				},
+			},
+		})
+
 	case typeTag:
 		_ = p.typ("")
 
@@ -438,7 +469,7 @@ func (p *gc_bin_parser) structType(parent string) *ast.StructType {
 
 func (p *gc_bin_parser) field(parent string) *ast.Field {
 	p.pos()
-	_, name := p.fieldName(parent)
+	_, name, _ := p.fieldName(parent)
 	typ := p.typ(parent)
 
 	var names []*ast.Ident
@@ -463,7 +494,7 @@ func (p *gc_bin_parser) methodList(parent string) (methods []*ast.Field) {
 
 func (p *gc_bin_parser) method(parent string) *ast.Field {
 	p.pos()
-	_, name := p.fieldName(parent)
+	_, name, _ := p.fieldName(parent)
 	params := p.paramList()
 	results := p.paramList()
 	return &ast.Field{
@@ -472,22 +503,33 @@ func (p *gc_bin_parser) method(parent string) *ast.Field {
 	}
 }
 
-func (p *gc_bin_parser) fieldName(parent string) (string, string) {
-	name := p.string()
-	pkg := parent
+func (p *gc_bin_parser) fieldName(parent string) (pkg string, name string, alias bool) {
+	name = p.string()
+	pkg = parent
 	if p.version == 0 && name == "_" {
 		// versions < 1 don't export a package for _ fields
 		// TODO: remove once versions are not supported anymore
-		return pkg, name
+		return
 	}
-	if name != "" && !exported(name) {
-		// explicitly qualified field
-		if name == "?" {
-			name = ""
-		}
+	switch name {
+	case "":
+		// 1) field name matches base type name and is exported: nothing to do
+	case "?":
+		// 2) field name matches base type name and is not exported: need package
+		name = ""
 		pkg = p.pkg()
+	case "@":
+		// 3) field name doesn't match typ name (alias)
+		name = p.string()
+		alias = true
+		fallthrough
+	default:
+		if !exported(name) {
+			pkg = p.pkg()
+		}
 	}
-	return pkg, name
+
+	return
 }
 
 func (p *gc_bin_parser) paramList() *ast.FieldList {
@@ -711,6 +753,9 @@ const (
 	complexTag
 	stringTag
 	unknownTag // not used by gc (only appears in packages with errors)
+
+	// Type aliases
+	aliasTag
 )
 
 var predeclared = []ast.Expr{
