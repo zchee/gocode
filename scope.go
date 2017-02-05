@@ -1,5 +1,7 @@
 package main
 
+import "log"
+
 //-------------------------------------------------------------------------
 // scope
 //-------------------------------------------------------------------------
@@ -30,6 +32,10 @@ func (s *scope) add_named_decl(d *decl) *decl {
 }
 
 func (s *scope) add_decl(name string, d *decl) *decl {
+	log.Printf("name: %+v, d: %+v ", name, d)
+	if d.typ != nil {
+		log.Printf("d.typ: %T, %+v\n", d.typ, d.typ)
+	}
 	decl, ok := s.entities[name]
 	if !ok {
 		s.entities[name] = d
