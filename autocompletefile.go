@@ -227,8 +227,7 @@ func (f *auto_complete_file) process_select_stmt(a *ast.SelectStmt) {
 	if !f.cursor_in(a.Body) {
 		return
 	}
-	var prevscope *scope
-	f.scope, prevscope = advance_scope(f.scope)
+	f.scope, _ = advance_scope(f.scope)
 
 	var last_cursor_after *ast.CommClause
 	for _, s := range a.Body.List {
@@ -239,11 +238,8 @@ func (f *auto_complete_file) process_select_stmt(a *ast.SelectStmt) {
 
 	if last_cursor_after != nil {
 		if last_cursor_after.Comm != nil {
-			//if lastCursorAfter.Lhs != nil && lastCursorAfter.Tok == token.DEFINE {
 			if astmt, ok := last_cursor_after.Comm.(*ast.AssignStmt); ok && astmt.Tok == token.DEFINE {
-				vname := astmt.Lhs[0].(*ast.Ident).Name
-				v := new_decl_var(vname, nil, astmt.Rhs[0], -1, prevscope)
-				f.scope.add_named_decl(v)
+				f.process_assign_stmt(astmt)
 			}
 		}
 		for _, s := range last_cursor_after.Body {
