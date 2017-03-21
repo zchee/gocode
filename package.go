@@ -237,14 +237,9 @@ import
 $$
 package unsafe
 	type @"".Pointer uintptr
-	func @"".Offsetof (? any) uintptr
-	func @"".Sizeof (? any) uintptr
-	func @"".Alignof (? any) uintptr
-	func @"".Typeof (i interface { }) interface { }
-	func @"".Reflect (i interface { }) (typ interface { }, addr @"".Pointer)
-	func @"".Unreflect (typ interface { }, addr @"".Pointer) interface { }
-	func @"".New (typ interface { }) @"".Pointer
-	func @"".NewArray (typ interface { }, n int) @"".Pointer
+	func @"".Offsetof (x ArbitraryType) uintptr
+	func @"".Sizeof (x ArbitraryType) uintptr
+	func @"".Alignof (x ArbitraryType) uintptr
 
 $$
 `)
